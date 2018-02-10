@@ -79,23 +79,54 @@ void loop() {
   
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("T               ");
+  lcd.print("     *C   % mmHg");
+  lcd.setCursor(5, 0);
+  lcd.print((char)0xDF);
+  lcd.setCursor(7, 0);
+  lcd.print((char)0xFF);
+  lcd.setCursor(11, 0);
+  lcd.print((char)0xFF);
   lcd.setCursor(0, 1);
-  lcd.print("H           P   ");
+  lcd.print("     *C   %     ");
+  lcd.setCursor(5, 1);
+  lcd.print((char)0xDF);
+  lcd.setCursor(7, 1);
+  lcd.print((char)0xFF);
+  lcd.setCursor(11, 1);
+  lcd.print((char)0xFF);
 
-  lcd.setCursor(2, 0);
+  lcd.setCursor(0, 0);
+  lcd.print((temperature0 + temperature2) / 2, 1);
+  lcd.setCursor(0, 1);
+  lcd.print(temperature1, 1);
+
+  lcd.setCursor(8, 0);
+  lcd.print((int)humidity0);
+  lcd.setCursor(8, 1);
+  lcd.print((int)humidity1);
+  lcd.setCursor(13, 1);
+  lcd.print((int)mb2mmhg(pressure2));
+
+/*  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("____*C ____*C   ");
+//           0123456789012345
+  lcd.setCursor(0, 1);
+  lcd.print("___% ___%  ___mm");
+//           0123456789012345
+
+  lcd.setCursor(0, 0);
   lcd.print(temperature0, 1);
   lcd.setCursor(7, 0);
   lcd.print(temperature1, 1);
-  lcd.setCursor(12, 0);
-  lcd.print(temperature2, 1);
 
-  lcd.setCursor(2, 1);
-  lcd.print(humidity0, 1);
-  lcd.setCursor(7, 1);
-  lcd.print(humidity1, 1);
-  lcd.setCursor(13, 1);
-  lcd.print((int)pressure2);
+  lcd.setCursor(0, 1);
+  lcd.print((int)humidity0, 1);
+  lcd.setCursor(5, 1);
+  lcd.print((int)humidity1, 1);
+  lcd.setCursor(11, 1);
+  lcd.print((int)mb2mmhg(pressure2));*/
+
   delay(5000);  // Pause for 5 seconds.
 }
 
@@ -103,5 +134,9 @@ void prn0(const char* s) {
   Serial.println(s);
   lcd.setCursor(0, 0);
   lcd.print(s);  
+}
+
+double mb2mmhg(double mb) {
+  return mb * 0.750061683;
 }
 
