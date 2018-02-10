@@ -11,6 +11,7 @@ git clone https://github.com/sparkfun/BMP180_Breakout_Arduino_Library.git
 
 #define DHT22_PIN0   10
 #define DHT22_PIN1   9
+#define MY_BMP180_PRESSURE_ERROR_MMHG 6
 //SDA A4
 //SDL A5
 
@@ -101,11 +102,11 @@ void loop() {
   lcd.print(temperature1, 1);
 
   lcd.setCursor(8, 0);
-  lcd.print((int)humidity0);
+  lcd.print(round(humidity0));
   lcd.setCursor(8, 1);
-  lcd.print((int)humidity1);
+  lcd.print(round(humidity1));
   lcd.setCursor(13, 1);
-  lcd.print((int)mb2mmhg(pressure2));
+  lcd.print(round(mb2mmhg(pressure2)));
 
 /*  lcd.clear();
   lcd.setCursor(0, 0);
@@ -137,6 +138,6 @@ void prn0(const char* s) {
 }
 
 double mb2mmhg(double mb) {
-  return mb * 0.750061683;
+  return (mb * 0.750061683) - MY_BMP180_PRESSURE_ERROR_MMHG;
 }
 
