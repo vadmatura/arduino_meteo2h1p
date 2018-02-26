@@ -9,105 +9,188 @@ git clone https://github.com/sparkfun/BMP180_Breakout_Arduino_Library.git
 #include <SFE_BMP180.h>
 #include <LiquidCrystal.h>
 
-#define DHT22_PIN0   10
-#define DHT22_PIN1   9
+#define DHT22_PIN0    10
+#define DHT22_PIN1    9
+#define LCD_RS        12
+#define LCD_E         11
+#define LCD_DB4       5
+#define LCD_DB5       4
+#define LCD_DB6       3
+#define LCD_DB7       2
 #define MY_BMP180_PRESSURE_ERROR_MMHG 6
 //SDA A4
 //SDL A5
+#define DHTTYPE       DHT22 //DHT 22 (AM2302)
 
-#define DHTTYPE     DHT22 //DHT 22 (AM2302)
+#define SYMBOLS_CELSIUM_GRAD ((byte)0x00)
+#define SYMBOLS_MILLI_METER  ((byte)0x01)
+#define SYMBOLS_HG           ((byte)0x02)
+#define SYMBOLS_INVERT_MINUS ((byte)0x03)
+#define SYMBOLS_INVERT_1     ((byte)0x04)
+#define SYMBOLS_INVERT_2     ((byte)0x05)
+#define SYMBOLS_INVERT_3     ((byte)0x06)
+#define SYMBOLS_INVERT_NUM   ((byte)0x04)
+#define SYMBOLS_FULL         ((byte)0xFF)
+
+struct SHumiditySensor {
+  float h;
+  float t;
+};
+
+struct SPressureSensor {
+  double p;
+  double t;
+};
+
+struct SMeteoData {
+  int time0;
+  int time1;
+  SHumiditySensor hs0;
+  SHumiditySensor hs1;
+  SPressureSensor ps;
+};
+
+// Custom symbols:
+byte Symbols[][8] = {{  // SYMBOLS_CELSIUM_GRAD
+    B11111,
+    B10011,
+    B10011,
+    B11111,
+    B11001,
+    B11011,
+    B11001,
+    B11111
+  }, {                  // SYMBOLS_MILLI_METER
+    B10001,
+    B11011,
+    B10101,
+    B00000,
+    B10001,
+    B11011,
+    B10101,
+    B00000
+  }, {                  // SYMBOLS_HG
+    B10100,
+    B11100,
+    B10100,
+    B00011,
+    B00100,
+    B00101,
+    B00011,
+    B00000
+  }, {                  // SYMBOLS_INVERT_MINUS
+    B11111,
+    B11111,
+    B11111,
+    B10001,
+    B10001,
+    B11111,
+    B11111,
+    B11111
+  }, {                  // SYMBOLS_INVERT_1
+    B11111,
+    B11011,
+    B10011,
+    B11011,
+    B11011,
+    B11011,
+    B10001,
+    B11111
+  }, {                  // SYMBOLS_INVERT_2
+    B11111,
+    B10001,
+    B01110,
+    B11101,
+    B11011,
+    B10111,
+    B00000,
+    B11111
+  }, {                  // SYMBOLS_INVERT_3
+    B11111,
+    B00000,
+    B11101,
+    B11011,
+    B11101,
+    B01110,
+    B10001,
+    B11111
+  }
+};
+
+// Global variables:
 DHT dht0(DHT22_PIN0, DHTTYPE);
 DHT dht1(DHT22_PIN1, DHTTYPE);
 SFE_BMP180 bmp180;
-LiquidCrystal lcd(12, 11, 5, 4, 3, 2); // (RS, E, DB4, DB5, DB6, DB7);
-volatile int time0 = 0, time1 = 0;
-
-//custom symbols
-/*byte celsiumGrad[8] = {
-  B10111,
-  B01011,
-  B10111,
-  B11100,
-  B11011,
-  B11011,
-  B11100,
-  B11111
-};*/
-byte celsiumGrad[8] = {
-  B01000,
-  B10100,
-  B01000,
-  B00011,
-  B00100,
-  B00100,
-  B00011
-};
-byte milliMeter[8] = {
-  B10001,
-  B11011,
-  B10101,
-  B00000,
-  B10001,
-  B11011,
-  B10101,
-  B00000
-};
-byte hidrarhium[8] = {
-  B10100,
-  B11100,
-  B10100,
-  B00011,
-  B00100,
-  B00101,
-  B00011,
-  B00000
-};
-/*byte invPercent[8] = {
-  B00111,
-  B00110,
-  B11101,
-  B11011,
-  B10111,
-  B01100,
-  B11100,
-  B11111
-};*/
+LiquidCrystal lcd(LCD_RS, LCD_E, LCD_DB4, LCD_DB5, LCD_DB6, LCD_DB7);
+SMeteoData meteoData;
 
 void setup() {
   // start serial port at 9600 bps:
   Serial.begin(9600);
-  while (!Serial) {
-    ; // wait for serial port to connect. Needed for native USB port only
-  }
+  while (!Serial) { ; } // wait for serial port to connect. Needed for native USB port only
   
   lcd.begin(16, 2);
-  lcd.createChar(0, celsiumGrad);
-  lcd.createChar(1, milliMeter);
-  lcd.createChar(2, hidrarhium);
-  //lcd.createChar(3, invPercent);
-
+  lcd.createChar(SYMBOLS_CELSIUM_GRAD,  Symbols[SYMBOLS_CELSIUM_GRAD]);
+  lcd.createChar(SYMBOLS_MILLI_METER,   Symbols[SYMBOLS_MILLI_METER]);
+  lcd.createChar(SYMBOLS_HG,            Symbols[SYMBOLS_HG]);
+  lcd.createChar(SYMBOLS_INVERT_MINUS,  Symbols[SYMBOLS_INVERT_MINUS]);
+  
   dht0.begin();
   dht1.begin();
   if (bmp180.begin()) {
     prn0("BMP180 init success");
   } else {
-    prn0("BMP180 init fail\n\n");
-    while(1); // Pause forever.
+    prn0("BMP180 init fail");
   }
+
+  meteoData.time0 = 0;
+  meteoData.time1 = 0;
   delay(2000);
 }
 
 void loop() {
-  double pressure2, temperature2;
-  float humidity0 = dht0.readHumidity();
-  float temperature0 = dht0.readTemperature();
-  float humidity1 = dht1.readHumidity();
-  float temperature1 = dht1.readTemperature();
+  getMeteoData();
+  printSerialData();
+
+// Prepare LCD
+  lcd.clear();
+  lcdPrn(0, 0, "  %     |00:00  ");
+  lcdPrn(3, 0, SYMBOLS_FULL);
+  lcdPrn(8, 0, SYMBOLS_CELSIUM_GRAD);
+  lcdPrn(0, 1, "  %     |   h   ");
+  lcdPrn(3, 1, SYMBOLS_FULL);
+  lcdPrn(8, 1, SYMBOLS_CELSIUM_GRAD);
+  lcdPrn(12, 1, SYMBOLS_HG);
+
+// Print data
+  lcdPrn(0, 0, (int)round(meteoData.hs0.h));
+  lcdPrn(0, 1, (int)round(meteoData.hs1.h));
+
+  lcdPrnT(0, (meteoData.hs0.t + meteoData.ps.t) / 2);
+  lcdPrnT(1, meteoData.hs1.t);
+
+  lcdPrnTm(0, meteoData.time0);
+  lcdPrnTm(1, meteoData.time1);
+  lcdPrn(9, 1, (int)round(mb2mmhg(meteoData.ps.p)));
+
+  delay(5000);  // Pause for 5 seconds.
+
+  if (Serial.available() > 0) {
+    meteoData.time0 = Serial.parseInt();
+    meteoData.time1 = Serial.parseInt();
+  }
+}
+
+void getMeteoData() {
+  meteoData.hs0.h = dht0.readHumidity();
+  meteoData.hs0.t = dht0.readTemperature();
+  meteoData.hs1.h = dht1.readHumidity();
+  meteoData.hs1.t = dht1.readTemperature();
   char status = bmp180.startTemperature();
   if (status != 0) {
     // Wait for the measurement to complete:
     delay(status);
-    status = bmp180.getTemperature(temperature2);
+    status = bmp180.getTemperature(meteoData.ps.t);
     if (status != 0) {
       // Start a pressure measurement:
       // The parameter is the oversampling setting, from 0 to 3 (highest res, longest wait).
@@ -117,77 +200,84 @@ void loop() {
       if (status != 0) {
         // Wait for the measurement to complete:
         delay(status);
-        bmp180.getPressure(pressure2, temperature2);
-      } else prn0("error starting pressure measurement\n");
-    } else prn0("error retrieving temperature measurement\n");
-  } else prn0("error starting temperature measurement\n");
+        bmp180.getPressure(meteoData.ps.p, meteoData.ps.t);
+      } else prn0("error starting pressure");
+    } else prn0("error retrieving temperature");
+  } else prn0("error starting temperature");
+}
 
+void printSerialData() {
   Serial.print(" ");
-  Serial.print(humidity0, 1);
+  Serial.print(meteoData.hs0.h, 1);
   Serial.print(" ");
-  Serial.print(temperature0, 1);
+  Serial.print(meteoData.hs0.t, 1);
   Serial.print(" ");
-  Serial.print(humidity1, 1);
+  Serial.print(meteoData.hs1.h, 1);
   Serial.print(" ");
-  Serial.print(temperature1, 1);
+  Serial.print(meteoData.hs1.t, 1);
   Serial.print(" ");
-  Serial.print(pressure2, 1);
+  Serial.print(meteoData.ps.p, 1);
   Serial.print(" ");
-  Serial.print(temperature2, 1);
+  Serial.print(meteoData.ps.t, 1);
   Serial.println("");
-  
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("     *|  %|  /  ");
-  lcd.setCursor(5, 0);
-  lcd.write(byte(0));
-  lcd.setCursor(6, 0);
-  lcd.print((char)0xFF);
-  lcd.setCursor(10, 0);
-  lcd.print((char)0xFF);
-  lcd.setCursor(0, 1);
-  lcd.print("     *|  %|     ");
-  lcd.setCursor(5, 1);
-  lcd.write(byte(0));
-  lcd.setCursor(6, 1);
-  lcd.print((char)0xFF);
-  lcd.setCursor(10, 1);
-  lcd.print((char)0xFF);
-  lcd.setCursor(11, 1);
-  lcd.write(byte(1));
-  lcd.setCursor(12, 1);
-  lcd.write(byte(2));
-
-  lcd.setCursor(0, 0);
-  lcd.print((temperature0 + temperature2) / 2, 1);
-  lcd.setCursor(0, 1);
-  lcd.cursor();
-  lcd.print(temperature1, 1);
-
-  lcd.setCursor(7, 0);
-  lcd.print(round(humidity0));
-  lcd.setCursor(7, 1);
-  lcd.print(round(humidity1));
-
-  lcd.setCursor(11, 0);
-  lcd.print(time0);
-  lcd.setCursor(14, 0);
-  lcd.print(time1);
-  lcd.setCursor(13, 1);
-  lcd.print(round(mb2mmhg(pressure2)));
-
-  delay(5000);  // Pause for 5 seconds.
-
-  if (Serial.available() > 0) {
-    time0 = Serial.parseInt();
-    time1 = Serial.parseInt();
-  }
 }
 
 void prn0(const char* s) {
   Serial.println(s);
   lcd.setCursor(0, 0);
   lcd.print(s);  
+}
+
+void lcdPrnT(int y, float t) {
+  if (t < 0) {
+    t = -t;
+    lcdPrn(3, y, SYMBOLS_INVERT_MINUS);
+  } else {
+    lcdPrn(3, y, SYMBOLS_FULL);
+  }
+  if (t >= 10) {
+    lcdPrn(4, y, t, 1);
+  } else {
+    lcdPrn(5, y, t, 1);
+  }
+}
+
+void lcdPrnTm(int y, int t) {
+  if (t < 9) {
+    lcdPrn(15, y, t);
+  } else if (t < 19) {
+    lcd.createChar(SYMBOLS_INVERT_NUM + y,      Symbols[SYMBOLS_INVERT_1]);
+    lcdPrn(14, y, (byte)(SYMBOLS_INVERT_NUM + y));
+    lcdPrn(15, y, (int)(t % 10));
+  } else if (t < 29) {
+    lcd.createChar(SYMBOLS_INVERT_NUM + y,      Symbols[SYMBOLS_INVERT_2]);
+    lcdPrn(14, y, (byte)(SYMBOLS_INVERT_NUM + y));
+    lcdPrn(15, y, (int)(t % 20));
+  } else {
+    lcd.createChar(SYMBOLS_INVERT_NUM + y,      Symbols[SYMBOLS_INVERT_3]);
+    lcdPrn(14, y, (byte)(SYMBOLS_INVERT_NUM + y));
+    lcdPrn(15, y, (int)(t % 30));
+  }
+}
+
+void lcdPrn(int x, int y, const byte c) {
+  lcd.setCursor(x, y);
+  lcd.write(c);
+}
+
+void lcdPrn(int x, int y, const char* c) {
+  lcd.setCursor(x, y);
+  lcd.print(c);
+}
+
+void lcdPrn(int x, int y, const double d, const int format) {
+  lcd.setCursor(x, y);
+  lcd.print(d, format);
+}
+
+void lcdPrn(int x, int y, const int i) {
+  lcd.setCursor(x, y);
+  lcd.print(i);
 }
 
 double mb2mmhg(double mb) {
