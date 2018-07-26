@@ -1,13 +1,23 @@
+#include <LiquidCrystal.h>
+
 /*
 git clone https://github.com/adafruit/DHT-sensor-library.git
 git clone https://github.com/sparkfun/BMP180_Breakout_Arduino_Library.git
+git clone https://github.com/adafruit/Adafruit_Sensor.git
+git clone https://github.com/fdebrabander/Arduino-LiquidCrystal-I2C-library.git
 */
+#define LCD_I2C
+
 #ifdef __AVR__
   #include <avr/power.h>
 #endif
 #include <DHT.h>
 #include <SFE_BMP180.h>
-#include <LiquidCrystal.h>
+#ifdef LCD_I2C
+  #include <LiquidCrystal_I2C.h>
+#else
+  #include <LiquidCrystal.h>
+#endif
 
 #define DHT22_PIN0    10
 #define DHT22_PIN1    9
@@ -121,7 +131,11 @@ byte Symbols[][8] = {{  // SYMBOLS_CELSIUM_GRAD
 DHT dht0(DHT22_PIN0, DHTTYPE);
 DHT dht1(DHT22_PIN1, DHTTYPE);
 SFE_BMP180 bmp180;
-LiquidCrystal lcd(LCD_RS, LCD_E, LCD_DB4, LCD_DB5, LCD_DB6, LCD_DB7);
+#ifdef LCD_I2C
+  LiquidCrystal_I2C lcd(0x27,16,2);
+#else
+  LiquidCrystal lcd(LCD_RS, LCD_E, LCD_DB4, LCD_DB5, LCD_DB6, LCD_DB7);
+#endif
 SMeteoData meteoData;
 
 void setup() {
@@ -129,7 +143,12 @@ void setup() {
   Serial.begin(9600);
   while (!Serial) { ; } // wait for serial port to connect. Needed for native USB port only
   
+#ifdef LCD_I2C
+  lcd.begin();
+  lcd.backlight();
+#else
   lcd.begin(16, 2);
+#endif
   lcd.createChar(SYMBOLS_CELSIUM_GRAD,  Symbols[SYMBOLS_CELSIUM_GRAD]);
   lcd.createChar(SYMBOLS_MILLI_METER,   Symbols[SYMBOLS_MILLI_METER]);
   lcd.createChar(SYMBOLS_HG,            Symbols[SYMBOLS_HG]);
@@ -163,8 +182,18 @@ void loop() {
   lcdPrn(12, 1, SYMBOLS_HG);
 
 // Print data
-  lcdPrn(0, 0, (int)round(meteoData.hs0.h));
-  lcdPrn(0, 1, (int)round(meteoData.hs1.h));
+  int hs0h = (int)round(meteoData.hs0.h);
+  int hs1h = (int)round(meteoData.hs1.h);
+  if (hs0h < 100) {
+    lcdPrn(0, 0, hs0h);
+  } else {
+    lcdPrn(0, 0, "00");
+  }
+  if (hs1h < 100) {
+    lcdPrn(0, 1, hs1h);
+  } else {
+    lcdPrn(0, 1, "00");
+  }
 
   lcdPrnT(0, (meteoData.hs0.t + meteoData.ps.t) / 2);
   lcdPrnT(1, meteoData.hs1.t);
